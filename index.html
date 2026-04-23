@@ -582,27 +582,38 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-overlay p { color: var(--text-muted); font-size: .9rem; }
 
-  .ip-banner {
-    max-width: 700px;
-    margin: 0 auto 1rem;
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius);
-    padding: .65rem 1rem;
-    font-size: .8rem;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    box-shadow: var(--shadow);
+  /* Player search */
+  .player-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 120px;
   }
-  .ip-banner code {
+  .player-search-dropdown {
+    position: absolute;
+    top: calc(100% - 2px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1.5px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,.1);
+    z-index: 50;
+    display: none;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .player-search-option {
+    padding: .5rem .75rem;
+    cursor: pointer;
+    font-size: .88rem;
+    transition: background .12s;
+  }
+  .player-search-option:hover,
+  .player-search-option.highlighted {
     background: var(--accent-light);
     color: var(--accent);
-    padding: .15rem .45rem;
-    border-radius: 5px;
-    font-weight: 600;
-    font-size: .8rem;
+    font-weight: 500;
   }
 
   @media (max-width: 600px) {
@@ -615,7 +626,6 @@
     .add-entry-row select { min-width: 0; }
     .add-entry-row input { flex: 1 1 80px; min-width: 80px; }
     .leaderboard-item { flex-wrap: wrap; gap: .3rem; }
-    .ip-banner { display: none; }
     table { font-size: .78rem; }
     th, td { padding: .4rem .4rem; }
   }
@@ -631,10 +641,6 @@
 <div class="header">
   <h1>Poker <span>Tracker</span></h1>
   <p>Gewinne & Verluste tracken</p>
-</div>
-
-<div class="ip-banner" id="ip-banner">
-  📱 Handy-Zugriff: Im selben WLAN öffne <code id="ip-url">http://10.116.221.104:8090/poker-tracker.html</code>
 </div>
 
 <div class="tabs">
@@ -687,9 +693,10 @@
       </div>
       <div id="entry-list"></div>
       <div class="add-entry-row">
-        <select id="entry-player">
-          <option value="">Spieler wählen...</option>
-        </select>
+        <div class="player-search-wrap" id="player-search-wrap">
+          <input type="text" id="entry-player-search" placeholder="Spieler suchen..." autocomplete="off" style="margin-bottom:0;width:100%">
+          <div class="player-search-dropdown" id="player-search-dropdown"></div>
+        </div>
         <input type="number" id="entry-amount" placeholder="+/- Euro" step="0.01">
         <button class="btn btn-sm" id="btn-add-entry">Hinzufuegen</button>
       </div>
@@ -848,6 +855,7 @@ async function init() {
   document.getElementById('btn-add-player').addEventListener('click', addPlayer);
   document.getElementById('btn-add-entry').addEventListener('click', addEntry);
   document.getElementById('btn-save-session').addEventListener('click', saveSession);
+  setupPlayerSearch();
 
   // Cancel edit
   document.getElementById('btn-cancel-edit').addEventListener('click', cancelEdit);
@@ -1013,17 +1021,106 @@ function renderPlayerList() {
 function renderPlayerDropdowns() {
   var data = load();
   var opts = data.players.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
-  document.getElementById('entry-player').innerHTML = '<option value="">Spieler waehlen...</option>' + opts;
   document.getElementById('graph-player').innerHTML = '<option value="__all__">Alle Spieler</option>' + opts;
+}
+
+// --- Player search ---
+var selectedPlayer = '';
+var highlightedPlayerIndex = -1;
+
+function setupPlayerSearch() {
+  var input = document.getElementById('entry-player-search');
+  var dropdown = document.getElementById('player-search-dropdown');
+
+  input.addEventListener('input', function() {
+    selectedPlayer = '';
+    highlightedPlayerIndex = -1;
+    updatePlayerDropdown();
+  });
+
+  input.addEventListener('focus', function() {
+    updatePlayerDropdown();
+  });
+
+  input.addEventListener('keydown', function(e) {
+    var opts = dropdown.querySelectorAll('.player-search-option');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlightedPlayerIndex = Math.min(highlightedPlayerIndex + 1, opts.length - 1);
+      updatePlayerHighlight(opts);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlightedPlayerIndex = Math.max(highlightedPlayerIndex - 1, 0);
+      updatePlayerHighlight(opts);
+    } else if (e.key === 'Enter') {
+      if (highlightedPlayerIndex >= 0 && opts[highlightedPlayerIndex]) {
+        selectPlayerFromDropdown(opts[highlightedPlayerIndex].getAttribute('data-player'));
+      } else if (opts.length === 1) {
+        selectPlayerFromDropdown(opts[0].getAttribute('data-player'));
+      }
+    } else if (e.key === 'Escape') {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('player-search-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+}
+
+function updatePlayerDropdown() {
+  var input = document.getElementById('entry-player-search');
+  var dropdown = document.getElementById('player-search-dropdown');
+  var q = input.value.trim().toLowerCase();
+  var filtered = q
+    ? DB.players.filter(function(p) { return p.toLowerCase().indexOf(q) !== -1; })
+    : DB.players.slice();
+
+  if (!filtered.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = filtered.map(function(p, i) {
+    var cls = i === highlightedPlayerIndex ? ' highlighted' : '';
+    return '<div class="player-search-option' + cls + '" data-player="' + p + '">' + p + '</div>';
+  }).join('');
+  dropdown.style.display = 'block';
+
+  dropdown.querySelectorAll('.player-search-option').forEach(function(opt) {
+    opt.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      selectPlayerFromDropdown(this.getAttribute('data-player'));
+    });
+  });
+}
+
+function updatePlayerHighlight(opts) {
+  opts.forEach(function(opt, i) {
+    opt.classList.toggle('highlighted', i === highlightedPlayerIndex);
+  });
+}
+
+function selectPlayerFromDropdown(name) {
+  selectedPlayer = name;
+  document.getElementById('entry-player-search').value = name;
+  document.getElementById('player-search-dropdown').style.display = 'none';
+  highlightedPlayerIndex = -1;
+  document.getElementById('entry-amount').focus();
 }
 
 // --- Session Entries ---
 function addEntry() {
-  var playerSel = document.getElementById('entry-player');
+  var searchInput = document.getElementById('entry-player-search');
   var amountInput = document.getElementById('entry-amount');
-  var player = playerSel.value;
+  // Accept selectedPlayer or exact typed name
+  var typed = searchInput.value.trim();
+  var player = selectedPlayer || typed;
+  // Validate against known players (case-insensitive)
+  var match = DB.players.find(function(p) { return p.toLowerCase() === player.toLowerCase(); });
+  if (!match) { showToast('Bitte Spieler auswaehlen'); return; }
+  player = match;
   var amount = parseFloat(amountInput.value);
-  if (!player) { showToast('Bitte Spieler waehlen'); return; }
   if (isNaN(amount)) { showToast('Bitte Betrag eingeben'); return; }
   if (tempEntries.find(function(e) { return e.player === player; })) {
     showToast(player + ' ist bereits eingetragen');
@@ -1031,7 +1128,8 @@ function addEntry() {
   }
   tempEntries.push({ player: player, amount: amount });
   amountInput.value = '';
-  playerSel.value = '';
+  searchInput.value = '';
+  selectedPlayer = '';
   renderEntryList();
 }
 
@@ -1145,6 +1243,8 @@ function cancelEdit() {
   document.querySelectorAll('#session-type-toggle button').forEach(function(b) {
     b.classList.toggle('active', b.getAttribute('data-type') === 'cash');
   });
+  document.getElementById('entry-player-search').value = '';
+  selectedPlayer = '';
   updateEditingUI();
   renderEntryList();
 }
