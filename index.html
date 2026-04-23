@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #f5f3f0;
+    --card: #ffffff;
+    --card-border: #e8e4df;
+    --accent: #2d6a4f;
+    --accent-hover: #1b4332;
+    --accent-light: #d8f3dc;
+    --text: #2c2c2c;
+    --text-muted: #8a8580;
+    --green: #2d6a4f;
+    --red: #c1121f;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+    --shadow-hover: 0 2px 8px rgba(0,0,0,.1), 0 8px 24px rgba(0,0,0,.06);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 1.5rem 1rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -.02em;
+  }
+  .header h1 span { color: var(--accent); }
+  .header p { color: var(--text-muted); font-size: .85rem; margin-top: .25rem; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    justify-content: center;
+    gap: .35rem;
+    margin-bottom: 1.5rem;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: .3rem;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: var(--shadow);
+  }
+  .tabs button {
+    flex: 1;
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    padding: .55rem .8rem;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all .25s ease;
+  }
+  .tabs button:hover { color: var(--text); background: var(--bg); }
+  .tabs button.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(45,106,79,.25);
+  }
+
+  /* Panels */
+  .panel {
+    display: none;
+    max-width: 700px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .panel.active {
+    display: block;
+    animation: fadeIn .3s ease forwards;
+  }
+  @keyframes fadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 1.4rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--card-border);
+    transition: box-shadow .25s ease;
+  }
+  .card:hover { box-shadow: var(--shadow-hover); }
+  .card h2 {
+    font-size: .95rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .card h2 .icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--accent-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+  }
+
+  /* Form elements */
+  label {
+    display: block;
+    margin-bottom: .3rem;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  input, select {
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 1.5px solid var(--card-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    font-size: .9rem;
+    font-family: inherit;
+    margin-bottom: .8rem;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(45,106,79,.12);
+  }
+  input::placeholder { color: #bbb; }
+
+  /* Buttons */
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: .55rem 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all .2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+  .btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(45,106,79,.2); }
+  .btn:active { transform: translateY(0); }
+  .btn-sm { padding: .4rem .7rem; font-size: .8rem; }
+  .btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--card-border);
+    color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); box-shadow: none; }
+  .btn-danger { background: var(--red); }
+  .btn-danger:hover { background: #a00d18; box-shadow: 0 2px 8px rgba(193,18,31,.2); }
+
+  .row { display: flex; gap: .8rem; align-items: end; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 120px; }
+
+  /* Entry form */
+  .entry-row {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .5rem;
+    padding: .5rem .7rem;
+    background: var(--bg);
+    border-radius: 8px;
+    transition: all .2s;
+    animation: slideIn .25s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .entry-row select { width: auto; flex: 1; margin-bottom: 0; }
+  .entry-row input[type="number"] { width: 100px; flex: 0 0 100px; margin-bottom: 0; }
+
+  .add-entry-row {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-top: .6rem;
+    flex-wrap: wrap;
+  }
+  .add-entry-row select { flex: 1; margin-bottom: 0; min-width: 120px; }
+  .add-entry-row input { width: 110px; flex: 0 0 110px; margin-bottom: 0; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: .6rem .7rem; text-align: left; font-size: .83rem; }
+  th { color: var(--text-muted); font-weight: 500; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1.5px solid var(--card-border); }
+  td { border-bottom: 1px solid var(--bg); }
+  .positive { color: var(--green); font-weight: 600; }
+  .negative { color: var(--red); font-weight: 600; }
+
+  /* Leaderboard */
+  .leaderboard-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .75rem .5rem;
+    border-radius: 8px;
+    transition: background .2s;
+    margin-bottom: .25rem;
+  }
+  .leaderboard-item:hover { background: var(--bg); }
+  .lb-left { display: flex; align-items: center; gap: .6rem; }
+  .rank {
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: .8rem;
+  }
+  .rank-1 { background: linear-gradient(135deg, #ffd700, #f0c000); color: #5a4800; }
+  .rank-2 { background: linear-gradient(135deg, #e0e0e0, #c0c0c0); color: #555; }
+  .rank-3 { background: linear-gradient(135deg, #dea47e, #cd7f32); color: #fff; }
+  .rank-other { background: var(--bg); color: var(--text-muted); }
+  .lb-name { font-weight: 600; font-size: .9rem; }
+  .lb-games { font-size: .75rem; color: var(--text-muted); }
+  .lb-amount { font-weight: 700; font-size: 1rem; }
+
+  /* Chart */
+  .chart-container { position: relative; height: 350px; margin-top: 1rem; }
+
+  /* Session log */
+  .session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: .7rem .5rem;
+    border-radius: 8px;
+    transition: background .2s;
+  }
+  .session-header:hover { background: var(--bg); }
+  .session-date { font-weight: 600; font-size: .88rem; }
+  .session-meta { font-size: .78rem; color: var(--text-muted); }
+  .session-details {
+    display: none;
+    padding: .5rem .5rem .5rem 1.5rem;
+    animation: fadeIn .2s ease;
+  }
+  .session-details.open { display: block; }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: .75rem;
+    opacity: .4;
+    font-family: inherit;
+    padding: .25rem .5rem;
+    border-radius: 4px;
+    transition: all .2s;
+  }
+  .delete-btn:hover { opacity: 1; background: rgba(193,18,31,.08); }
+
+  .edit-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: .75rem;
+    opacity: .5;
+    font-family: inherit;
+    padding: .25rem .5rem;
+    border-radius: 4px;
+    transition: all .2s;
+  }
+  .edit-btn:hover { opacity: 1; background: var(--accent-light); }
+
+  /* Import */
+  .import-textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: .75rem;
+    border: 1.5px solid var(--card-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    font-size: .85rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    line-height: 1.5;
+    resize: vertical;
+    transition: border-color .2s, box-shadow .2s;
+    margin-bottom: .8rem;
+  }
+  .import-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(45,106,79,.12);
+  }
+  .import-textarea::placeholder { color: #bbb; font-family: inherit; }
+  .import-preview {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: .8rem;
+    animation: fadeIn .3s ease forwards;
+  }
+  .import-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .6rem;
+  }
+  .import-preview-header h3 {
+    font-size: .88rem;
+    font-weight: 600;
+  }
+  .import-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: .3rem 0;
+    font-size: .85rem;
+  }
+  .import-error {
+    color: var(--red);
+    font-size: .82rem;
+    padding: .5rem 0;
+  }
+  .import-hint {
+    font-size: .78rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: .8rem;
+  }
+  .import-hint code {
+    background: var(--bg);
+    padding: .1rem .35rem;
+    border-radius: 4px;
+    font-size: .75rem;
+  }
+
+  .editing-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: .55rem .8rem;
+    margin-bottom: 1rem;
+    font-size: .84rem;
+    font-weight: 500;
+    color: #664d03;
+    animation: fadeIn .3s ease forwards;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2.5rem 1rem;
+    font-size: .9rem;
+  }
+  .empty-state .empty-icon { font-size: 2rem; margin-bottom: .5rem; display: block; }
+
+  /* Player chips */
+  .player-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    background: var(--bg);
+    padding: .35rem .65rem;
+    border-radius: 20px;
+    margin: .2rem;
+    font-size: .82rem;
+    font-weight: 500;
+    border: 1px solid var(--card-border);
+    transition: all .2s;
+  }
+  .player-chip:hover { border-color: var(--red); }
+  .player-chip .remove-player {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: .85rem;
+    line-height: 1;
+    padding: 0;
+    transition: color .2s;
+  }
+  .player-chip .remove-player:hover { color: var(--red); }
+
+  /* Balance indicator */
+  .balance-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .7rem;
+    border-radius: 8px;
+    font-size: .82rem;
+    font-weight: 500;
+    transition: all .25s;
+  }
+  .balance-ok { background: var(--accent-light); color: var(--green); }
+  .balance-warn { background: #fef3cd; color: #856404; }
+
+  /* Type toggle */
+  .type-toggle {
+    display: flex;
+    gap: .25rem;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: .2rem;
+    margin-bottom: .8rem;
+  }
+  .type-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: .45rem .8rem;
+    border-radius: 6px;
+    font-size: .82rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all .2s ease;
+  }
+  .type-toggle button.active {
+    background: #fff;
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .type-toggle button:hover:not(.active) { color: var(--text); }
+
+  /* Filter pills */
+  .filter-bar {
+    display: flex;
+    gap: .3rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .filter-pill {
+    background: var(--bg);
+    border: 1.5px solid var(--card-border);
+    border-radius: 20px;
+    padding: .35rem .8rem;
+    font-size: .78rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all .2s ease;
+  }
+  .filter-pill.active {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .filter-pill:hover:not(.active) { border-color: var(--text-muted); color: var(--text); }
+
+  /* Session type badge */
+  .type-badge {
+    display: inline-block;
+    padding: .15rem .5rem;
+    border-radius: 4px;
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .type-badge.cash { background: #dbeafe; color: #1e40af; }
+  .type-badge.turnier { background: #fce7f3; color: #9d174d; }
+  .type-badge.blackjack { background: #fef3c7; color: #92400e; }
+
+  /* Settlement */
+  .settlement {
+    margin-top: .8rem;
+    padding-top: .8rem;
+    border-top: 1px solid var(--card-border);
+  }
+  .settlement-title {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .5rem;
+  }
+  .settlement-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem 0;
+    font-size: .84rem;
+  }
+  .settlement-arrow {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .settlement-amount {
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: auto;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--card-border);
+    margin: 1rem 0;
+  }
+
+  /* Success message */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #fff;
+    padding: .6rem 1.2rem;
+    border-radius: 10px;
+    font-size: .85rem;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(45,106,79,.3);
+    opacity: 0;
+    transition: all .3s ease;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 999;
+    gap: 1rem;
+    transition: opacity .4s ease;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--card-border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay p { color: var(--text-muted); font-size: .9rem; }
+
+  .ip-banner {
+    max-width: 700px;
+    margin: 0 auto 1rem;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: .65rem 1rem;
+    font-size: .8rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    box-shadow: var(--shadow);
+  }
+  .ip-banner code {
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: .15rem .45rem;
+    border-radius: 5px;
+    font-weight: 600;
+    font-size: .8rem;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: .75rem .5rem; }
+    .header h1 { font-size: 1.3rem; }
+    .tabs { max-width: 100%; padding: .25rem; }
+    .tabs button { font-size: .72rem; padding: .5rem .35rem; }
+    .card { padding: 1rem; }
+    .add-entry-row { flex-wrap: wrap; }
+    .add-entry-row select { min-width: 0; }
+    .add-entry-row input { flex: 1 1 80px; min-width: 80px; }
+    .leaderboard-item { flex-wrap: wrap; gap: .3rem; }
+    .ip-banner { display: none; }
+    table { font-size: .78rem; }
+    th, td { padding: .4rem .4rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <p>Daten werden geladen…</p>
+</div>
+
+<div class="header">
+  <h1>Poker <span>Tracker</span></h1>
+  <p>Gewinne & Verluste tracken</p>
+</div>
+
+<div class="ip-banner" id="ip-banner">
+  📱 Handy-Zugriff: Im selben WLAN öffne <code id="ip-url">http://10.116.221.104:8090/poker-tracker.html</code>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="enter">Eintragen</button>
+  <button data-tab="leaderboard">Bestenliste</button>
+  <button data-tab="graph">Verlauf</button>
+  <button data-tab="history">Historie</button>
+</div>
+
+<!-- Migration Banner (hidden until old data found) -->
+<div id="migration-card" style="display:none;max-width:700px;margin:0 auto 1rem">
+  <div class="card" style="border-color:#ffc107;background:#fffdf0">
+    <h2><span class="icon">💾</span> Alte Daten gefunden</h2>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-bottom:1rem">
+      Im Browser wurden noch lokale Daten gefunden. Du kannst sie jetzt in die Cloud (Supabase) übertragen, damit sie für alle Geräte verfügbar sind.
+    </p>
+    <div id="migration-preview" style="background:var(--bg);border-radius:8px;padding:.8rem 1rem;font-size:.83rem;margin-bottom:1rem"></div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+      <button class="btn" id="btn-migrate">🚀 Jetzt migrieren</button>
+      <button class="btn btn-outline" id="btn-migrate-skip">Überspringen</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Eintragen -->
+<div id="tab-enter" class="panel active">
+  <div class="card">
+    <div id="editing-banner" class="editing-banner" style="display:none">
+      <span>Session wird bearbeitet</span>
+      <button class="btn btn-sm btn-outline" id="btn-cancel-edit">Abbrechen</button>
+    </div>
+    <div class="type-toggle" id="entry-mode-toggle" style="margin-bottom:1rem">
+      <button class="active" data-mode="manual">Neue Session</button>
+      <button data-mode="import">WhatsApp Import</button>
+    </div>
+
+    <!-- Manual entry -->
+    <div id="entry-manual">
+      <label>Modus</label>
+      <div class="type-toggle" id="session-type-toggle">
+        <button class="active" data-type="cash">Cash Game</button>
+        <button data-type="turnier">Turnier</button>
+        <button data-type="blackjack">Blackjack</button>
+      </div>
+      <div class="row" style="margin-bottom:1rem">
+        <div>
+          <label>Datum</label>
+          <input type="date" id="session-date">
+        </div>
+      </div>
+      <div id="entry-list"></div>
+      <div class="add-entry-row">
+        <select id="entry-player">
+          <option value="">Spieler wählen...</option>
+        </select>
+        <input type="number" id="entry-amount" placeholder="+/- Euro" step="0.01">
+        <button class="btn btn-sm" id="btn-add-entry">Hinzufuegen</button>
+      </div>
+      <div id="entry-settlement"></div>
+      <div class="divider"></div>
+      <div style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
+        <button class="btn" id="btn-save-session">Session speichern</button>
+        <span id="session-balance"></span>
+      </div>
+    </div>
+
+    <!-- WhatsApp Import -->
+    <div id="entry-import" style="display:none">
+      <p class="import-hint">
+        Kopiere die Nachricht(en) aus eurem WhatsApp-Chat hier rein. Erkannt werden Nachrichten die mit <code>##</code> starten.<br>
+        Format: <code>## Cash Game</code> oder <code>## Turnier</code>, dann pro Zeile <code>Name: Betrag</code>
+      </p>
+      <textarea class="import-textarea" id="import-text" placeholder="## Cash Game
+Tom: +15
+Anna: -10
+Lisa: -5
+
+## Turnier
+Tom: -20
+Anna: +20"></textarea>
+      <div id="import-preview"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="icon">P</span> Spieler</h2>
+    <div style="display:flex;gap:.5rem;align-items:end;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px">
+        <label>Neuer Spieler</label>
+        <input type="text" id="new-player-name" placeholder="Name eingeben" style="margin-bottom:0">
+      </div>
+      <button class="btn" id="btn-add-player" style="margin-bottom:0;height:38px">Hinzufuegen</button>
+    </div>
+    <div id="player-list" style="margin-top:.8rem"></div>
+  </div>
+</div>
+
+<!-- TAB: Bestenliste -->
+<div id="tab-leaderboard" class="panel">
+  <div class="card">
+    <h2><span class="icon">T</span> Alltime-Bestenliste</h2>
+    <div class="filter-bar" id="lb-filter">
+      <button class="filter-pill active" data-filter="all">Alle</button>
+      <button class="filter-pill" data-filter="cash">Cash Game</button>
+      <button class="filter-pill" data-filter="turnier">Turnier</button>
+      <button class="filter-pill" data-filter="blackjack">Blackjack</button>
+    </div>
+    <div id="leaderboard"></div>
+  </div>
+</div>
+
+<!-- TAB: Graph -->
+<div id="tab-graph" class="panel">
+  <div class="card">
+    <h2><span class="icon">G</span> Verlauf</h2>
+    <div class="filter-bar" id="graph-filter">
+      <button class="filter-pill active" data-filter="all">Alle</button>
+      <button class="filter-pill" data-filter="cash">Cash Game</button>
+      <button class="filter-pill" data-filter="turnier">Turnier</button>
+      <button class="filter-pill" data-filter="blackjack">Blackjack</button>
+    </div>
+    <label>Spieler</label>
+    <select id="graph-player">
+      <option value="__all__">Alle Spieler</option>
+    </select>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Historie -->
+<div id="tab-history" class="panel">
+  <div class="card">
+    <h2><span class="icon">H</span> Alle Sessions</h2>
+    <div class="filter-bar" id="history-filter">
+      <button class="filter-pill active" data-filter="all">Alle</button>
+      <button class="filter-pill" data-filter="cash">Cash Game</button>
+      <button class="filter-pill" data-filter="turnier">Turnier</button>
+      <button class="filter-pill" data-filter="blackjack">Blackjack</button>
+    </div>
+    <div id="session-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// --- Supabase ---
+var SUPABASE_URL = 'https://jcfrufxdfkiufzbilueg.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjZnJ1ZnhkZmtpdWZ6YmlsdWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MzMzMTMsImV4cCI6MjA5MjUwOTMxM30.HzjCYOJZVvJNe41BXl2fweI7eD54tyxYaERJLL4uBes';
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- In-memory cache (replaces localStorage) ---
+var DB = { players: [], sessions: [] };
+
+function load() { return DB; }
+
+async function fetchDB() {
+  var results = await Promise.all([
+    sb.from('players').select('name').order('created_at'),
+    sb.from('sessions').select('*').order('date')
+  ]);
+  DB.players = (results[0].data || []).map(function(p) { return p.name; });
+  DB.sessions = (results[1].data || []).map(function(s) {
+    return { id: s.id, date: s.date, type: s.type, entries: s.entries };
+  });
+}
+
+let tempEntries = [];
+var currentSessionType = 'cash';
+var editingSessionId = null; // null = new session, number = editing existing
+var lbFilterType = 'all';
+var graphFilterType = 'all';
+var historyFilterType = 'all';
+
+// --- Toast ---
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// --- Init ---
+async function init() {
+  // Load data from Supabase first
+  await fetchDB();
+  var overlay = document.getElementById('loading-overlay');
+  overlay.classList.add('hidden');
+  setTimeout(function() { overlay.remove(); }, 500);
+
+  // Check for old localStorage data to migrate
+  checkAndShowMigration();
+
+  document.getElementById('session-date').value = new Date().toISOString().slice(0, 10);
+
+  // Tab switching
+  document.querySelectorAll('.tabs button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const tab = this.getAttribute('data-tab');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      this.classList.add('active');
+      if (tab === 'graph') setTimeout(renderGraph, 50);
+    });
+  });
+
+  // Buttons
+  document.getElementById('btn-add-player').addEventListener('click', addPlayer);
+  document.getElementById('btn-add-entry').addEventListener('click', addEntry);
+  document.getElementById('btn-save-session').addEventListener('click', saveSession);
+
+  // Cancel edit
+  document.getElementById('btn-cancel-edit').addEventListener('click', cancelEdit);
+
+  // Entry mode toggle (manual vs import)
+  document.querySelectorAll('#entry-mode-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#entry-mode-toggle button').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      var mode = this.getAttribute('data-mode');
+      document.getElementById('entry-manual').style.display = mode === 'manual' ? 'block' : 'none';
+      document.getElementById('entry-import').style.display = mode === 'import' ? 'block' : 'none';
+    });
+  });
+
+  // Import textarea live preview
+  document.getElementById('import-text').addEventListener('input', renderImportPreview);
+
+  // Enter key support
+  document.getElementById('new-player-name').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addPlayer();
+  });
+  document.getElementById('entry-amount').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addEntry();
+  });
+
+  // Graph player change
+  document.getElementById('graph-player').addEventListener('change', renderGraph);
+
+  // Session type toggle
+  document.querySelectorAll('#session-type-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#session-type-toggle button').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      currentSessionType = this.getAttribute('data-type');
+    });
+  });
+
+  // Filter bars
+  setupFilterBar('lb-filter', function(type) { lbFilterType = type; renderLeaderboard(); });
+  setupFilterBar('graph-filter', function(type) { graphFilterType = type; renderGraph(); });
+  setupFilterBar('history-filter', function(type) { historyFilterType = type; renderHistory(); });
+
+  refreshAll();
+}
+
+function setupFilterBar(id, callback) {
+  document.querySelectorAll('#' + id + ' .filter-pill').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#' + id + ' .filter-pill').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      callback(this.getAttribute('data-filter'));
+    });
+  });
+}
+
+function filterSessions(sessions, type) {
+  if (type === 'all') return sessions;
+  return sessions.filter(function(s) { return s.type === type; });
+}
+
+function typeLabel(type) {
+  if (type === 'turnier') return 'Turnier';
+  if (type === 'blackjack') return 'Blackjack';
+  return 'Cash';
+}
+
+// --- Settlement: who pays whom ---
+function calculateSettlement(entries) {
+  var debtors = []; // lost money (negative amount)
+  var creditors = []; // won money (positive amount)
+  entries.forEach(function(e) {
+    if (e.amount < -0.005) debtors.push({ player: e.player, amount: Math.abs(e.amount) });
+    else if (e.amount > 0.005) creditors.push({ player: e.player, amount: e.amount });
+  });
+  debtors.sort(function(a, b) { return b.amount - a.amount; });
+  creditors.sort(function(a, b) { return b.amount - a.amount; });
+
+  var transfers = [];
+  var di = 0, ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    var pay = Math.min(debtors[di].amount, creditors[ci].amount);
+    if (pay > 0.005) {
+      transfers.push({ from: debtors[di].player, to: creditors[ci].player, amount: pay });
+    }
+    debtors[di].amount -= pay;
+    creditors[ci].amount -= pay;
+    if (debtors[di].amount < 0.01) di++;
+    if (creditors[ci].amount < 0.01) ci++;
+  }
+  return transfers;
+}
+
+function renderSettlement(entries) {
+  var transfers = calculateSettlement(entries);
+  if (!transfers.length) return '';
+  var html = '<div class="settlement"><div class="settlement-title">Abrechnung</div>';
+  transfers.forEach(function(t) {
+    html += '<div class="settlement-row">' +
+      '<span>' + t.from + '</span>' +
+      '<span class="settlement-arrow">&rarr;</span>' +
+      '<span>' + t.to + '</span>' +
+      '<span class="settlement-amount">' + t.amount.toFixed(2) + ' &euro;</span>' +
+    '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function refreshAll() {
+  renderPlayerList();
+  renderPlayerDropdowns();
+  renderEntryList();
+  renderLeaderboard();
+  renderGraph();
+  renderHistory();
+}
+
+// --- Players ---
+async function addPlayer() {
+  var input = document.getElementById('new-player-name');
+  var name = input.value.trim();
+  if (!name) return;
+  if (DB.players.some(function(p) { return p.toLowerCase() === name.toLowerCase(); })) {
+    showToast('Spieler existiert bereits!');
+    return;
+  }
+  var res = await sb.from('players').insert({ name: name });
+  if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+  DB.players.push(name);
+  input.value = '';
+  showToast(name + ' hinzugefuegt!');
+  refreshAll();
+}
+
+async function removePlayer(name) {
+  if (!confirm('"' + name + '" wirklich entfernen?')) return;
+  var res = await sb.from('players').delete().eq('name', name);
+  if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+  DB.players = DB.players.filter(function(p) { return p !== name; });
+  refreshAll();
+}
+
+function renderPlayerList() {
+  var data = load();
+  var el = document.getElementById('player-list');
+  if (!data.players.length) {
+    el.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Noch keine Spieler hinzugefuegt</span>';
+    return;
+  }
+  el.innerHTML = data.players.map(function(p) {
+    return '<span class="player-chip">' + p +
+      ' <button class="remove-player" data-player="' + p + '">&times;</button></span>';
+  }).join('');
+
+  el.querySelectorAll('.remove-player').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      removePlayer(this.getAttribute('data-player'));
+    });
+  });
+}
+
+function renderPlayerDropdowns() {
+  var data = load();
+  var opts = data.players.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+  document.getElementById('entry-player').innerHTML = '<option value="">Spieler waehlen...</option>' + opts;
+  document.getElementById('graph-player').innerHTML = '<option value="__all__">Alle Spieler</option>' + opts;
+}
+
+// --- Session Entries ---
+function addEntry() {
+  var playerSel = document.getElementById('entry-player');
+  var amountInput = document.getElementById('entry-amount');
+  var player = playerSel.value;
+  var amount = parseFloat(amountInput.value);
+  if (!player) { showToast('Bitte Spieler waehlen'); return; }
+  if (isNaN(amount)) { showToast('Bitte Betrag eingeben'); return; }
+  if (tempEntries.find(function(e) { return e.player === player; })) {
+    showToast(player + ' ist bereits eingetragen');
+    return;
+  }
+  tempEntries.push({ player: player, amount: amount });
+  amountInput.value = '';
+  playerSel.value = '';
+  renderEntryList();
+}
+
+function removeEntry(i) {
+  tempEntries.splice(i, 1);
+  renderEntryList();
+}
+
+function renderEntryList() {
+  var el = document.getElementById('entry-list');
+  if (!tempEntries.length) { el.innerHTML = ''; updateBalance(); return; }
+  el.innerHTML = tempEntries.map(function(e, i) {
+    var cls = e.amount >= 0 ? 'positive' : 'negative';
+    var sign = e.amount >= 0 ? '+' : '';
+    return '<div class="entry-row">' +
+      '<span style="flex:1;font-weight:500">' + e.player + '</span>' +
+      '<span class="' + cls + '" style="flex:0 0 90px;text-align:right">' + sign + e.amount.toFixed(2) + ' &euro;</span>' +
+      '<button class="delete-btn" data-index="' + i + '">&times;</button>' +
+    '</div>';
+  }).join('');
+
+  el.querySelectorAll('.delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      removeEntry(parseInt(this.getAttribute('data-index')));
+    });
+  });
+
+  updateBalance();
+}
+
+function updateBalance() {
+  var total = tempEntries.reduce(function(s, e) { return s + e.amount; }, 0);
+  var el = document.getElementById('session-balance');
+  var settlementEl = document.getElementById('entry-settlement');
+  if (!tempEntries.length) { el.innerHTML = ''; settlementEl.innerHTML = ''; return; }
+  var balanced = Math.abs(total) < 0.01;
+  var cls = balanced ? 'balance-ok' : 'balance-warn';
+  var sign = total >= 0 ? '+' : '';
+  el.innerHTML = '<span class="balance-bar ' + cls + '">Bilanz: ' + sign + total.toFixed(2) +
+    ' &euro; ' + (balanced ? '&#10003;' : '&#9888;') + '</span>';
+  settlementEl.innerHTML = tempEntries.length >= 2 ? renderSettlement(tempEntries) : '';
+}
+
+async function saveSession() {
+  if (!tempEntries.length) { showToast('Keine Eintraege vorhanden'); return; }
+  var date = document.getElementById('session-date').value;
+  if (!date) { showToast('Bitte Datum waehlen'); return; }
+  var total = tempEntries.reduce(function(s, e) { return s + e.amount; }, 0);
+  if (Math.abs(total) >= 0.01) {
+    if (!confirm('Bilanz ist nicht ausgeglichen (' + total.toFixed(2) + ' Euro). Trotzdem speichern?')) return;
+  }
+  if (editingSessionId !== null) {
+    var res = await sb.from('sessions').update({
+      date: date, entries: tempEntries.slice(), type: currentSessionType
+    }).eq('id', editingSessionId);
+    if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+    var idx = DB.sessions.findIndex(function(s) { return s.id === editingSessionId; });
+    if (idx !== -1) {
+      DB.sessions[idx].date = date;
+      DB.sessions[idx].entries = tempEntries.slice();
+      DB.sessions[idx].type = currentSessionType;
+    }
+    editingSessionId = null;
+    showToast('Session aktualisiert!');
+  } else {
+    var sessionId = Date.now();
+    var res = await sb.from('sessions').insert({
+      id: sessionId, date: date, entries: tempEntries.slice(), type: currentSessionType
+    });
+    if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+    DB.sessions.push({ id: sessionId, date: date, entries: tempEntries.slice(), type: currentSessionType });
+    showToast('Session gespeichert!');
+  }
+  DB.sessions.sort(function(a, b) { return a.date.localeCompare(b.date); });
+  tempEntries = [];
+  updateEditingUI();
+  refreshAll();
+}
+
+function editSession(id) {
+  var data = load();
+  var session = data.sessions.find(function(s) { return s.id === id; });
+  if (!session) return;
+
+  // Load session data into form
+  editingSessionId = id;
+  tempEntries = session.entries.map(function(e) { return { player: e.player, amount: e.amount }; });
+  currentSessionType = session.type || 'cash';
+  document.getElementById('session-date').value = session.date;
+
+  // Update type toggle
+  document.querySelectorAll('#session-type-toggle button').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-type') === currentSessionType);
+  });
+
+  // Switch to Eintragen tab
+  document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tabs button').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('tab-enter').classList.add('active');
+  document.querySelector('[data-tab="enter"]').classList.add('active');
+
+  updateEditingUI();
+  renderEntryList();
+}
+
+function cancelEdit() {
+  editingSessionId = null;
+  tempEntries = [];
+  currentSessionType = 'cash';
+  document.getElementById('session-date').value = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('#session-type-toggle button').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-type') === 'cash');
+  });
+  updateEditingUI();
+  renderEntryList();
+}
+
+function updateEditingUI() {
+  var saveBtn = document.getElementById('btn-save-session');
+  var banner = document.getElementById('editing-banner');
+  if (editingSessionId !== null) {
+    saveBtn.textContent = 'Aenderungen speichern';
+    banner.style.display = 'flex';
+  } else {
+    saveBtn.textContent = 'Session speichern';
+    banner.style.display = 'none';
+  }
+}
+
+// --- Leaderboard ---
+function renderLeaderboard() {
+  var data = load();
+  var el = document.getElementById('leaderboard');
+  var sessions = filterSessions(data.sessions, lbFilterType);
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty-state"><span class="empty-icon">&#127942;</span>Noch keine Sessions gespielt</div>';
+    return;
+  }
+
+  var totals = {};
+  var games = {};
+  sessions.forEach(function(s) {
+    s.entries.forEach(function(e) {
+      totals[e.player] = (totals[e.player] || 0) + e.amount;
+      games[e.player] = (games[e.player] || 0) + 1;
+    });
+  });
+
+  var sorted = Object.entries(totals).sort(function(a, b) { return b[1] - a[1]; });
+  el.innerHTML = sorted.map(function(item, i) {
+    var name = item[0], total = item[1];
+    var rankClass = i < 3 ? 'rank-' + (i+1) : 'rank-other';
+    var amtClass = total >= 0 ? 'positive' : 'negative';
+    var sign = total >= 0 ? '+' : '';
+    return '<div class="leaderboard-item">' +
+      '<div class="lb-left">' +
+        '<span class="rank ' + rankClass + '">' + (i+1) + '</span>' +
+        '<div><div class="lb-name">' + name + '</div>' +
+        '<div class="lb-games">' + games[name] + ' Sessions</div></div>' +
+      '</div>' +
+      '<span class="lb-amount ' + amtClass + '">' + sign + total.toFixed(2) + ' &euro;</span>' +
+    '</div>';
+  }).join('');
+}
+
+// --- Graph ---
+var chart = null;
+var COLORS = ['#2d6a4f','#c1121f','#3a86ff','#fb8500','#8338ec','#06d6a0','#ef476f','#118ab2','#ffd166','#073b4c','#9b5de5','#00f5d4'];
+
+function renderGraph() {
+  var data = load();
+  var sel = document.getElementById('graph-player').value;
+  var canvas = document.getElementById('chart');
+
+  if (chart) { chart.destroy(); chart = null; }
+  var sessions = filterSessions(data.sessions, graphFilterType);
+  if (!sessions.length) return;
+
+  var players = sel === '__all__'
+    ? sessions.reduce(function(acc, s) { s.entries.forEach(function(e) { if (acc.indexOf(e.player) === -1) acc.push(e.player); }); return acc; }, [])
+    : [sel];
+
+  // Build labels: one point per session. If multiple sessions on same date, add index.
+  var dateCounts = {};
+  sessions.forEach(function(s) { dateCounts[s.date] = (dateCounts[s.date] || 0) + 1; });
+  var dateIndex = {};
+  var labels = sessions.map(function(s) {
+    if (dateCounts[s.date] > 1) {
+      dateIndex[s.date] = (dateIndex[s.date] || 0) + 1;
+      return formatDate(s.date) + ' #' + dateIndex[s.date];
+    }
+    return formatDate(s.date);
+  });
+
+  var datasets = players.map(function(player, pi) {
+    var running = 0;
+    var points = sessions.map(function(s) {
+      var entry = s.entries.find(function(e) { return e.player === player; });
+      if (entry) running += entry.amount;
+      return running;
+    });
+    return {
+      label: player,
+      data: points,
+      borderColor: COLORS[pi % COLORS.length],
+      backgroundColor: COLORS[pi % COLORS.length] + '18',
+      tension: 0.35,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+      pointBackgroundColor: '#fff',
+      pointBorderWidth: 2.5,
+      borderWidth: 2.5,
+      fill: players.length === 1,
+      spanGaps: true
+    };
+  });
+
+  chart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        tooltip: {
+          backgroundColor: '#fff',
+          titleColor: '#2c2c2c',
+          bodyColor: '#2c2c2c',
+          borderColor: '#e8e4df',
+          borderWidth: 1,
+          cornerRadius: 8,
+          padding: 10,
+          callbacks: {
+            label: function(ctx) {
+              var sign = ctx.parsed.y >= 0 ? '+' : '';
+              return ctx.dataset.label + ': ' + sign + ctx.parsed.y.toFixed(2) + ' Euro';
+            }
+          }
+        },
+        legend: {
+          labels: { color: '#2c2c2c', usePointStyle: true, pointStyle: 'circle', padding: 16 }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8a8580', font: { size: 11 } }, grid: { color: '#f0ece7' } },
+        y: {
+          ticks: { color: '#8a8580', font: { size: 11 }, callback: function(v) { return v + ' Euro'; } },
+          grid: { color: '#f0ece7' }
+        }
+      }
+    }
+  });
+}
+
+// --- History ---
+function renderHistory() {
+  var data = load();
+  var el = document.getElementById('session-list');
+  var sessions = filterSessions(data.sessions, historyFilterType);
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty-state"><span class="empty-icon">&#128196;</span>Noch keine Sessions</div>';
+    return;
+  }
+
+  el.innerHTML = sessions.slice().reverse().map(function(s) {
+    var potTotal = s.entries.reduce(function(sum, e) { return sum + Math.max(0, e.amount); }, 0);
+    var typeBadge = '<span class="type-badge ' + (s.type || 'cash') + '">' + typeLabel(s.type) + '</span>';
+    var rows = s.entries.map(function(e) {
+      var cls = e.amount >= 0 ? 'positive' : 'negative';
+      var sign = e.amount >= 0 ? '+' : '';
+      return '<div style="display:flex;justify-content:space-between;padding:.3rem 0">' +
+        '<span>' + e.player + '</span>' +
+        '<span class="' + cls + '">' + sign + e.amount.toFixed(2) + ' &euro;</span></div>';
+    }).join('');
+    rows += renderSettlement(s.entries);
+    return '<div>' +
+      '<div class="session-header" data-id="' + s.id + '">' +
+        '<div><span class="session-date">' + formatDate(s.date) + '</span> ' + typeBadge +
+        '<span class="session-meta"> &mdash; ' + s.entries.length + ' Spieler &mdash; Pot: ' + potTotal.toFixed(2) + ' &euro;</span></div>' +
+        '<span style="display:flex;gap:.3rem">' +
+        '<button class="edit-btn" data-edit-id="' + s.id + '">Bearbeiten</button>' +
+        '<button class="delete-btn" data-session-id="' + s.id + '">Loeschen</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="session-details" data-details="' + s.id + '">' + rows + '</div></div>';
+  }).join('');
+
+  el.querySelectorAll('.session-header').forEach(function(header) {
+    header.addEventListener('click', function(e) {
+      if (e.target.classList.contains('delete-btn')) return;
+      var id = this.getAttribute('data-id');
+      var details = document.querySelector('[data-details="' + id + '"]');
+      if (details) details.classList.toggle('open');
+    });
+  });
+
+  el.querySelectorAll('.delete-btn[data-session-id]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = parseInt(this.getAttribute('data-session-id'));
+      deleteSession(id);
+    });
+  });
+
+  el.querySelectorAll('.edit-btn[data-edit-id]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var id = parseInt(this.getAttribute('data-edit-id'));
+      editSession(id);
+    });
+  });
+}
+
+async function deleteSession(id) {
+  if (!confirm('Session wirklich loeschen?')) return;
+  var res = await sb.from('sessions').delete().eq('id', id);
+  if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+  DB.sessions = DB.sessions.filter(function(s) { return s.id !== id; });
+  showToast('Session geloescht');
+  refreshAll();
+}
+
+function formatDate(d) {
+  var parts = d.split('-');
+  return parts[2] + '.' + parts[1] + '.' + parts[0];
+}
+
+// --- WhatsApp Import ---
+// Strips WhatsApp prefix from a line and returns { content, date }.
+// Handles: "[12.04.2026, 22:15:30] Name: ..." (iOS)
+//          "12.04.26, 22:15 - Name: ..." (Android export)
+//          "12.04.2026 22:15 - Name: ..." (alternative)
+function stripWhatsAppPrefix(line) {
+  // Normalize invisible whitespace (narrow no-break space, LRM, etc.)
+  var normalized = line.replace(/[\u202F\u00A0\u200E\u200F]/g, ' ').trim();
+  var date = null;
+  var content = normalized;
+
+  // iOS format: [DD.MM.YY(YY), HH:MM(:SS)] Name: content
+  var iosMatch = normalized.match(/^\[(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4}),?\s+\d{1,2}:\d{2}(?::\d{2})?\]\s+([^:]+):\s*(.*)$/);
+  if (iosMatch) {
+    date = toISODate(iosMatch[1], iosMatch[2], iosMatch[3]);
+    content = iosMatch[5].trim();
+    return { content: content, date: date };
+  }
+
+  // Android format: DD.MM.YY(YY), HH:MM(:SS) - Name: content
+  var androidMatch = normalized.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4}),?\s+\d{1,2}:\d{2}(?::\d{2})?\s*[-–—]\s*([^:]+):\s*(.*)$/);
+  if (androidMatch) {
+    date = toISODate(androidMatch[1], androidMatch[2], androidMatch[3]);
+    content = androidMatch[5].trim();
+    return { content: content, date: date };
+  }
+
+  return { content: content, date: null };
+}
+
+function toISODate(d, m, y) {
+  var day = String(d).padStart(2, '0');
+  var month = String(m).padStart(2, '0');
+  var year = String(y);
+  if (year.length === 2) year = '20' + year;
+  return year + '-' + month + '-' + day;
+}
+
+function parseWhatsApp(text) {
+  var sessions = [];
+  var lines = text.split(/\r?\n/);
+  var current = null;
+
+  for (var i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    if (!raw.trim()) continue;
+
+    var stripped = stripWhatsAppPrefix(raw);
+    var line = stripped.content;
+    var dateFromMsg = stripped.date;
+
+    // Check for ## header (tolerate leading spaces)
+    var headerMatch = line.match(/^\s*##\s*(.+)/);
+    if (headerMatch) {
+      if (current && current.entries.length > 0) {
+        sessions.push(current);
+      }
+      var headerText = headerMatch[1].trim();
+
+      // Extract optional date at end of header: "Cash Game 09.04.2026"
+      var dateInHeader = null;
+      var headerDateMatch = headerText.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})\s*$/);
+      if (headerDateMatch) {
+        dateInHeader = toISODate(headerDateMatch[1], headerDateMatch[2], headerDateMatch[3]);
+        headerText = headerText.substring(0, headerDateMatch.index).trim();
+      }
+
+      var modeText = headerText.toLowerCase();
+      var type = 'cash';
+      if (modeText.indexOf('turnier') !== -1 || modeText.indexOf('tournament') !== -1) {
+        type = 'turnier';
+      } else if (modeText.indexOf('blackjack') !== -1 || modeText.indexOf('black jack') !== -1) {
+        type = 'blackjack';
+      }
+      current = {
+        type: type,
+        modeRaw: headerText,
+        date: dateInHeader || dateFromMsg || new Date().toISOString().slice(0, 10),
+        entries: []
+      };
+      continue;
+    }
+
+    // If we're inside a session, parse "Name: Betrag"
+    if (current) {
+      // Match "Name: Betrag" or "Name Betrag" (colon optional, allow euro sign, spaces)
+      var entryMatch = line.match(/^\s*([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]*?)\s*:?\s*([+-]?\s*\d+(?:[.,]\d+)?)\s*(?:€|EUR|Euro)?\s*$/i);
+      if (entryMatch) {
+        var name = entryMatch[1].trim();
+        var amountStr = entryMatch[2].replace(/\s/g, '').replace(',', '.');
+        var amount = parseFloat(amountStr);
+        if (!isNaN(amount) && name.length > 0) {
+          current.entries.push({ player: name, amount: amount });
+        }
+      }
+    }
+  }
+  if (current && current.entries.length > 0) {
+    sessions.push(current);
+  }
+  return sessions;
+}
+
+function renderImportPreview() {
+  var text = document.getElementById('import-text').value;
+  var el = document.getElementById('import-preview');
+
+  if (!text.trim()) { el.innerHTML = ''; return; }
+
+  var sessions = parseWhatsApp(text);
+  if (!sessions.length) {
+    el.innerHTML = '<div class="import-error">Keine Sessions erkannt. Nachrichten muessen mit <b>##</b> beginnen.</div>';
+    return;
+  }
+
+  var html = sessions.map(function(s, si) {
+    var typeBadge = '<span class="type-badge ' + s.type + '">' + typeLabel(s.type) + '</span>';
+    var total = s.entries.reduce(function(sum, e) { return sum + e.amount; }, 0);
+    var balanced = Math.abs(total) < 0.01;
+
+    var entriesHtml = s.entries.map(function(e) {
+      var cls = e.amount >= 0 ? 'positive' : 'negative';
+      var sign = e.amount >= 0 ? '+' : '';
+      return '<div class="import-entry"><span>' + e.player + '</span><span class="' + cls + '">' + sign + e.amount.toFixed(2) + ' &euro;</span></div>';
+    }).join('');
+
+    var balanceHtml = '<span class="balance-bar ' + (balanced ? 'balance-ok' : 'balance-warn') + '" style="font-size:.78rem">' +
+      'Bilanz: ' + (total >= 0 ? '+' : '') + total.toFixed(2) + ' &euro; ' + (balanced ? '&#10003;' : '&#9888;') + '</span>';
+
+    var settlementHtml = s.entries.length >= 2 ? renderSettlement(s.entries) : '';
+
+    return '<div class="import-preview">' +
+      '<div class="import-preview-header">' +
+        '<h3>' + formatDate(s.date) + ' ' + typeBadge + '</h3>' +
+        balanceHtml +
+      '</div>' +
+      entriesHtml +
+      settlementHtml +
+      '<div style="margin-top:.8rem"><button class="btn btn-sm import-save-btn" data-import-index="' + si + '">Session speichern</button></div>' +
+    '</div>';
+  }).join('');
+
+  el.innerHTML = html;
+
+  // Store parsed sessions for saving
+  el._parsedSessions = sessions;
+
+  el.querySelectorAll('.import-save-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(this.getAttribute('data-import-index'));
+      saveImportedSession(idx);
+      this.textContent = 'Gespeichert!';
+      this.disabled = true;
+      this.style.opacity = '.5';
+    });
+  });
+}
+
+async function saveImportedSession(index) {
+  var el = document.getElementById('import-preview');
+  var sessions = el._parsedSessions;
+  if (!sessions || !sessions[index]) return;
+
+  var s = sessions[index];
+
+  // Auto-add unknown players
+  var newPlayers = s.entries
+    .map(function(e) { return e.player; })
+    .filter(function(name) {
+      return !DB.players.some(function(p) { return p.toLowerCase() === name.toLowerCase(); });
+    });
+  for (var i = 0; i < newPlayers.length; i++) {
+    var pr = await sb.from('players').insert({ name: newPlayers[i] });
+    if (!pr.error) DB.players.push(newPlayers[i]);
+  }
+
+  var sessionId = Date.now() + index;
+  var res = await sb.from('sessions').insert({
+    id: sessionId, date: s.date, entries: s.entries.slice(), type: s.type
+  });
+  if (res.error) { showToast('Fehler: ' + res.error.message); return; }
+  DB.sessions.push({ id: sessionId, date: s.date, entries: s.entries.slice(), type: s.type });
+  DB.sessions.sort(function(a, b) { return a.date.localeCompare(b.date); });
+  showToast('Session importiert!');
+  refreshAll();
+}
+
+async function saveAllImported() {
+  var el = document.getElementById('import-preview');
+  var sessions = el._parsedSessions;
+  if (!sessions || !sessions.length) return;
+
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    // Auto-add unknown players
+    var newPlayers = s.entries
+      .map(function(e) { return e.player; })
+      .filter(function(name) {
+        return !DB.players.some(function(p) { return p.toLowerCase() === name.toLowerCase(); });
+      });
+    for (var j = 0; j < newPlayers.length; j++) {
+      var pr = await sb.from('players').insert({ name: newPlayers[j] });
+      if (!pr.error) DB.players.push(newPlayers[j]);
+    }
+    var sessionId = Date.now() + i;
+    var res = await sb.from('sessions').insert({
+      id: sessionId, date: s.date, entries: s.entries.slice(), type: s.type
+    });
+    if (!res.error) DB.sessions.push({ id: sessionId, date: s.date, entries: s.entries.slice(), type: s.type });
+  }
+
+  DB.sessions.sort(function(a, b) { return a.date.localeCompare(b.date); });
+  showToast(sessions.length + ' Session(s) importiert!');
+  document.getElementById('import-text').value = '';
+  el.innerHTML = '';
+  refreshAll();
+}
+
+// --- localStorage Migration ---
+function findLocalStorageData() {
+  // Try all likely keys the old app might have used
+  var candidates = ['pokerDB', 'poker_db', 'poker-tracker', 'pokerTracker', 'poker_tracker', 'sessions', 'pokerSessions'];
+  for (var i = 0; i < candidates.length; i++) {
+    try {
+      var raw = localStorage.getItem(candidates[i]);
+      if (!raw) continue;
+      var parsed = JSON.parse(raw);
+      // Expect either {players:[], sessions:[]} or just []
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.sessions) && parsed.sessions.length > 0) {
+          return { key: candidates[i], data: parsed };
+        }
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].entries) {
+          return { key: candidates[i], data: { players: [], sessions: parsed } };
+        }
+      }
+    } catch(e) {}
+  }
+  return null;
+}
+
+function checkAndShowMigration() {
+  var found = findLocalStorageData();
+  if (!found) return;
+
+  var card = document.getElementById('migration-card');
+  var preview = document.getElementById('migration-preview');
+  card.style.display = 'block';
+
+  var d = found.data;
+  var playerCount = (d.players || []).length;
+  var sessionCount = (d.sessions || []).length;
+
+  preview.innerHTML =
+    '<strong>' + sessionCount + ' Session(s)</strong>' +
+    (playerCount ? ' · <strong>' + playerCount + ' Spieler</strong>' : '') +
+    ' gefunden (localStorage-Key: <code style="background:#e8e4df;padding:.1rem .3rem;border-radius:4px">' + found.key + '</code>)';
+
+  document.getElementById('btn-migrate').addEventListener('click', function() {
+    migrateFromLocalStorage(found);
+  });
+  document.getElementById('btn-migrate-skip').addEventListener('click', function() {
+    card.style.display = 'none';
+  });
+}
+
+async function migrateFromLocalStorage(found) {
+  var btn = document.getElementById('btn-migrate');
+  btn.textContent = 'Wird migriert…';
+  btn.disabled = true;
+
+  var d = found.data;
+  var players = d.players || [];
+  var sessions = d.sessions || [];
+  var errors = 0;
+  var skippedSessions = 0;
+
+  // Add players (skip duplicates)
+  for (var i = 0; i < players.length; i++) {
+    var name = players[i];
+    if (!DB.players.some(function(p) { return p.toLowerCase() === name.toLowerCase(); })) {
+      var pr = await sb.from('players').insert({ name: name });
+      if (!pr.error) DB.players.push(name);
+      else errors++;
+    }
+  }
+
+  // Add sessions (skip if ID already exists)
+  var existingIds = DB.sessions.map(function(s) { return s.id; });
+  for (var j = 0; j < sessions.length; j++) {
+    var s = sessions[j];
+    // Auto-add any players from session entries not yet in DB
+    if (s.entries) {
+      for (var k = 0; k < s.entries.length; k++) {
+        var eName = s.entries[k].player;
+        if (eName && !DB.players.some(function(p) { return p.toLowerCase() === eName.toLowerCase(); })) {
+          var ep = await sb.from('players').insert({ name: eName });
+          if (!ep.error) DB.players.push(eName);
+        }
+      }
+    }
+
+    var sessionId = s.id || (Date.now() + j);
+    if (existingIds.indexOf(sessionId) !== -1) { skippedSessions++; continue; }
+
+    var res = await sb.from('sessions').insert({
+      id: sessionId,
+      date: s.date,
+      entries: s.entries || [],
+      type: s.type || 'cash'
+    });
+    if (!res.error) {
+      DB.sessions.push({ id: sessionId, date: s.date, entries: s.entries || [], type: s.type || 'cash' });
+      existingIds.push(sessionId);
+    } else {
+      errors++;
+    }
+  }
+
+  DB.sessions.sort(function(a, b) { return a.date.localeCompare(b.date); });
+
+  var msg = (sessions.length - errors - skippedSessions) + ' Sessions migriert!';
+  if (skippedSessions) msg += ' (' + skippedSessions + ' bereits vorhanden)';
+  if (errors) msg += ' · ' + errors + ' Fehler';
+
+  showToast(msg);
+  document.getElementById('migration-card').style.display = 'none';
+
+  // Optionally keep localStorage intact (user can clear manually)
+  // localStorage.removeItem(found.key);
+
+  refreshAll();
+}
+
+// --- Start ---
+init();
+</script>
+</body>
+</html>
